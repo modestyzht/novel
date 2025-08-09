@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>小说阅读器</title>
+    <title>小说阅读器 - 滑动翻页版</title>
     <style>
         * {
             margin: 0;
@@ -15,6 +15,7 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background-color: #f5f5f5;
             transition: all 0.3s ease;
+            overflow-x: hidden;
         }
 
         .container {
@@ -38,6 +39,16 @@
             padding: 0 20px;
             z-index: 100;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .header.hidden {
+            transform: translateY(-100%);
         }
 
         .header h1 {
@@ -127,24 +138,42 @@
         /* 阅读页面 */
         .reader {
             display: none;
-            padding: 20px;
-            line-height: 1.8;
-            max-width: 100%;
-            padding-top: 20px; /* 减少顶部padding，因为不显示标题栏 */
+            position: relative;
+            overflow: hidden;
+            height: calc(100vh - 60px);
         }
 
         .reader.active {
             display: block;
         }
 
-        /* 沉浸式阅读模式 - 隐藏标题栏 */
-        .reader.immersive + .header {
-            transform: translateY(-100%);
-            transition: transform 0.3s ease;
+        /* 章节容器 */
+        .chapter-container {
+            position: relative;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
         }
 
-        .reader.immersive {
-            padding-top: 20px;
+        .chapter-slide {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            padding: 20px;
+            box-sizing: border-box;
+            transition: transform 0.5s ease;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .chapter-slide.prev {
+            transform: translateY(-100%);
+        }
+
+        .chapter-slide.next {
+            transform: translateY(100%);
         }
 
         .chapter-title {
@@ -153,6 +182,7 @@
             color: #333;
             margin-bottom: 20px;
             text-align: center;
+            padding-top: 10px;
         }
 
         .chapter-content {
@@ -161,29 +191,11 @@
             text-align: justify;
             white-space: pre-wrap;
             word-break: break-word;
-            min-height: calc(100vh - 80px);
-            position: relative;
+            line-height: 1.8;
+            padding-bottom: 40px;
         }
 
-        /* 章节切换动画容器 */
-        .chapter-container {
-            position: relative;
-            overflow: hidden;
-            min-height: 100vh;
-        }
-
-        .chapter-slide {
-            transition: transform 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
-        }
-
-        .chapter-slide.slide-up {
-            transform: translateY(-100%);
-        }
-
-        .chapter-slide.slide-down {
-            transform: translateY(100%);
-        }
-
+        /* 阅读控制栏 */
         .reader-controls {
             position: fixed;
             bottom: 0;
@@ -197,10 +209,15 @@
             gap: 15px;
             border-top: 1px solid #e0e0e0;
             z-index: 50;
+            transition: transform 0.3s ease;
         }
 
         .reader-controls.active {
             display: flex;
+        }
+
+        .reader-controls.hidden {
+            transform: translateY(100%);
         }
 
         .control-row {
@@ -225,6 +242,11 @@
             background: #0056D6;
         }
 
+        .control-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
         .control-btn.secondary {
             background: #f0f0f0;
             color: #333;
@@ -232,6 +254,28 @@
 
         .control-btn.secondary:hover {
             background: #e0e0e0;
+        }
+
+        /* 滑动提示 */
+        .swipe-hint {
+            position: fixed;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            opacity: 0.8;
+            animation: pulse 2s infinite;
+            pointer-events: none;
+            z-index: 10;
+            display: none;
+        }
+
+        @keyframes pulse {
+            0% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0); }
         }
 
         /* 设置页面 */
@@ -291,6 +335,27 @@
             cursor: pointer;
         }
 
+        .font-size-btn {
+            background: #f0f0f0;
+            color: #333;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            min-width: 40px;
+        }
+
+        .font-size-btn:hover {
+            background: #e0e0e0;
+        }
+
+        .font-size-btn.active {
+            background: #007AFF;
+            color: white;
+        }
+
         .color-option {
             width: 30px;
             height: 30px;
@@ -301,21 +366,6 @@
         }
 
         .color-option.active {
-            border-color: #007AFF;
-        }
-
-        .flip-option {
-            padding: 6px 12px;
-            border: 1px solid #e0e0e0;
-            border-radius: 6px;
-            font-size: 12px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .flip-option.active {
-            background: #007AFF;
-            color: white;
             border-color: #007AFF;
         }
 
@@ -335,6 +385,10 @@
             }
 
             .reader {
+                padding: 0;
+            }
+
+            .chapter-slide {
                 padding: 15px;
             }
 
@@ -350,6 +404,11 @@
             .control-btn {
                 flex: 1;
                 min-width: 60px;
+            }
+            
+            .swipe-hint {
+                font-size: 12px;
+                bottom: 10px;
             }
         }
 
@@ -380,6 +439,7 @@
         body.theme-dark .reader-controls {
             background: #2a2a2a;
             color: #e0e0e0;
+            border-bottom-color: #333;
         }
 
         body.theme-sepia .header,
@@ -388,6 +448,7 @@
         body.theme-sepia .reader-controls {
             background: #f7f3e9;
             color: #5c4b37;
+            border-bottom-color: #e0d8c5;
         }
 
         body.theme-green .header,
@@ -396,16 +457,44 @@
         body.theme-green .reader-controls {
             background: #f0f8f0;
             color: #2d5016;
+            border-bottom-color: #d0e8d0;
+        }
+        
+        /* 进度指示器 */
+        .progress-indicator {
+            position: fixed;
+            top: 60px;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: rgba(0,0,0,0.1);
+            z-index: 90;
+            display: none;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            background: #007AFF;
+            transition: width 0.3s ease;
         }
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- 进度指示器 -->
+        <div class="progress-indicator" id="progressIndicator">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+        
         <!-- 头部导航 -->
-        <header class="header">
+        <header class="header" id="header">
             <button class="header-btn" id="backBtn" style="display: none;">←</button>
             <h1 id="headerTitle">我的书架</h1>
-            <button class="header-btn" id="settingsBtn">⚙️</button>
+            <div class="header-actions">
+                <button class="header-btn" id="backToReaderBtn" style="display: none;">📖</button>
+                <button class="header-btn" id="settingsBtn">⚙️</button>
+            </div>
         </header>
 
         <!-- 主要内容 -->
@@ -420,10 +509,7 @@
             <!-- 阅读页面 -->
             <div class="reader" id="reader">
                 <div class="chapter-container" id="chapterContainer">
-                    <div class="chapter-slide" id="chapterSlide">
-                        <div class="chapter-title" id="chapterTitle"></div>
-                        <div class="chapter-content" id="chapterContent"></div>
-                    </div>
+                    <!-- 章节将通过JavaScript动态添加 -->
                 </div>
                 
                 <!-- 阅读控制栏 -->
@@ -439,6 +525,9 @@
                         <button class="control-btn" id="toggleControls">隐藏</button>
                     </div>
                 </div>
+                
+                <!-- 滑动提示 -->
+                <div class="swipe-hint" id="swipeHint">上滑进入下一章</div>
             </div>
 
             <!-- 设置页面 -->
@@ -447,10 +536,10 @@
                     <div class="setting-title">显示设置</div>
                     <div class="setting-item">
                         <div class="setting-label">字体大小</div>
-                        <div class="setting-control">
-                            <span id="fontSizeValue">16px</span>
-                            <input type="range" class="range-slider" id="fontSizeSlider" 
-                                   min="12" max="24" value="16" step="1">
+                        <div class="setting-control" id="fontSizeControl">
+                            <button class="font-size-btn active" data-size="16">小</button>
+                            <button class="font-size-btn" data-size="24">中</button>
+                            <button class="font-size-btn" data-size="32">大</button>
                         </div>
                     </div>
                     <div class="setting-item">
@@ -469,12 +558,13 @@
                 </div>
 
                 <div class="setting-group">
-                    <div class="setting-title">翻页设置</div>
+                    <div class="setting-title">阅读设置</div>
                     <div class="setting-item">
-                        <div class="setting-label">翻页方式</div>
+                        <div class="setting-label">滑动灵敏度</div>
                         <div class="setting-control">
-                            <div class="flip-option active" data-flip="tap">点击翻页</div>
-                            <div class="flip-option" data-flip="swipe">滑动翻页</div>
+                            <span id="sensitivityValue">中</span>
+                            <input type="range" class="range-slider" id="sensitivitySlider" 
+                                   min="1" max="3" value="2" step="1">
                         </div>
                     </div>
                 </div>
@@ -485,7 +575,7 @@
     <script>
         // 示例小说数据
         const novels = {
-                        1: {
+                         1: {
                 title: "龙族Z",
                 author: "西北驴哥",
                 progress: "第3章",
@@ -1081,39 +1171,6 @@
                 ]
             },
             2: {
-                title: "流浪地球",
-                author: "刘慈欣",
-                progress: "未开始",
-                chapters: [
-                    {
-                        title: "第一章 刹车时代",
-                        content: `我没有想到的是，我的整个人生都将在刹车时代中度过。
-
-我出生的时候，地球刚刚停止转动。
-
-那时我当然什么都不知道，是听爸爸后来讲的。他说在我出生的那个夜晚，他走出医院，看到夜空中满天繁星静静地闪烁着，不再移动。那些星星，永远固定在天空的这个位置上了。
-
-"从今以后，太阳将不再从东方升起了。"爸爸说。
-
-他说得对。当我长大一些，懂事的时候，太阳确实不再从东方升起。准确地说，太阳不再升起，它就那样静静地悬挂在西方的天空中，永远不动。
-
-这就是刹车时代的开始。
-
-人类花了四十二年的时间，让地球停止了自转。在这四十二年中，全球建造了一万二千台行星发动机。这些发动机每台都有一座山那么高，它们被均匀地分布在亚洲和美洲大陆上（因为这两块大陆完整地连在一起，作为发动机推进器使用最合适）。
-
-行星发动机分为两类：转向发动机和推进发动机。转向发动机先让地球停止自转，后来将推动地球改变轨道。推进发动机将在地球脱离太阳轨道后，推动它驶向新的恒星系统。
-
-我就是在地球停止自转的那一天出生的，所以从小就生活在一个静止的世界中。
-
-静止的世界很奇怪。
-
-太阳固定在天空的一个位置上，根本不移动。天空是深蓝色的，因为大气层比以前稀薄了许多，星星在白天也能看见。我们住的地方正好在阳光照射的范围内，是在北京以西的一个小城市。城市的西面是阳光，东面是黑夜和寒冷。黑夜与白天的边界线就这样固定地从城市中央穿过。
-
-我们家在边界线附近。从我家的窗户往外看，左边是阳光和正常的温度，右边是黑夜和严寒。这条边界线他们叫做晨昏线。`
-                    }
-                ]
-            },
-            3: {
                 title: "球状闪电",
                 author: "刘慈欣",
                 progress: "未开始",
@@ -1141,71 +1198,174 @@
 这就是球状闪电。
 
 从那天开始，我的人生就只有一个目标：研究球状闪电，弄清楚它到底是什么，为什么会发生这样的事情。`
+                    },
+                    {
+                        title: "第二章 神秘现象",
+                        content: `球状闪电是一种极其罕见的现象，科学家们对它知之甚少。
+
+在接下来的几年里，我收集了所有能找到的关于球状闪电的资料。我发现这种神秘现象有几个特点：
+
+1. 通常出现在雷暴天气
+2. 大小从几厘米到几米不等
+3. 持续时间从几秒到几分钟
+4. 可以穿透固体物质
+5. 有时会爆炸，有时会无声消失
+6. 对物体的破坏非常特殊，只破坏某些材料而保留其他
+
+最令人费解的是它的选择性破坏能力。在我父母遇难的那次事件中，人体被完全破坏，但衣物却完好无损。同样，房间里的木制家具毫发无伤，但金属物品都有不同程度的熔化。
+
+这种选择性破坏现象让科学家们百思不得其解。`
+                    },
+                    {
+                        title: "第三章 研究之路",
+                        content: `高中毕业后，我考入了清华大学物理系，专攻大气物理学和等离子体物理。
+
+在大学里，我遇到了张斌教授，他是国内研究球状闪电的权威。当他得知我的经历后，主动邀请我加入他的研究小组。
+
+"球状闪电可能是人类尚未理解的一种新的物质形态，"张教授说，"传统的等离子体理论无法解释它的许多特性。"
+
+我们建立了一个专门的实验室，尝试在受控环境下重现球状闪电。经过无数次失败，我们终于在一个高压放电装置中观察到了类似球状闪电的现象。
+
+这个发现让我们兴奋不已，但也带来了更多疑问。我们创造出的"人工球状闪电"只能维持几毫秒，而且极不稳定。真正自然界中的球状闪电是如何保持稳定的？它的能量来源是什么？为什么会有选择性破坏能力？
+
+为了寻找答案，我决定攻读博士学位，继续深入研究这个困扰人类几个世纪的谜题。`
                     }
                 ]
             }
         };
 
-        // 应用设置 - 添加默认设置
+        // 应用设置
         let settings = {
             fontSize: 16,
             theme: 'light',
-            flipMode: 'tap'
+            swipeSensitivity: 2 // 1:低, 2:中, 3:高
         };
-
-        // 从本地存储加载设置
-        function loadSettings() {
-            try {
-                const savedSettings = JSON.parse(window.localStorage.getItem('novelReaderSettings'));
-                if (savedSettings) {
-                    settings = { ...settings, ...savedSettings };
-                    console.log('已加载保存的设置:', settings);
-                } else {
-                    console.log('使用默认设置');
-                }
-            } catch (error) {
-                console.error('加载设置失败，使用默认设置:', error);
-            }
-        }
-
-        // 保存设置到本地存储
-        function saveSettings() {
-            try {
-                window.localStorage.setItem('novelReaderSettings', JSON.stringify(settings));
-                console.log('设置已保存:', settings);
-            } catch (error) {
-                console.error('保存设置失败:', error);
-            }
-        }
 
         // 当前状态
         let currentPage = 'bookshelf';
         let currentNovel = null;
         let currentChapter = 0;
-        let isImmersiveMode = false;
+        let isImmersiveMode = true;
         let isAnimating = false;
+        let touchStartY = 0;
+        let touchStartTime = 0;
+
+        // 阅读进度内存存储
+        let readingProgress = {};
 
         // 页面元素
         let elements = {};
+
+        // 安全的本地存储操作
+        function safeLocalStorage() {
+            try {
+                return window.localStorage && typeof window.localStorage === 'object';
+            } catch (e) {
+                return false;
+            }
+        }
+
+        // 保存设置
+        function saveSettings() {
+            if (safeLocalStorage()) {
+                try {
+                    window.localStorage.setItem('novelReaderSettings', JSON.stringify(settings));
+                    console.log('设置已保存:', settings);
+                } catch (error) {
+                    console.warn('保存设置失败:', error);
+                }
+            }
+        }
+
+        // 加载设置
+        function loadSettings() {
+            if (safeLocalStorage()) {
+                try {
+                    const savedSettings = JSON.parse(window.localStorage.getItem('novelReaderSettings'));
+                    if (savedSettings) {
+                        settings = { ...settings, ...savedSettings };
+                        console.log('已加载保存的设置:', settings);
+                    }
+                } catch (error) {
+                    console.warn('加载设置失败，使用默认设置:', error);
+                }
+            }
+        }
+
+        // 保存阅读进度
+        function saveReadingProgress() {
+            if (currentNovel && novels[currentNovel]) {
+                const novel = novels[currentNovel];
+                const chapter = novel.chapters[currentChapter];
+                novels[currentNovel].progress = chapter.title;
+                
+                // 更新内存中的进度
+                readingProgress[currentNovel] = {
+                    currentChapter: currentChapter,
+                    chapterTitle: chapter.title,
+                    lastReadTime: new Date().toISOString()
+                };
+
+                // 尝试保存到本地存储
+                if (safeLocalStorage()) {
+                    try {
+                        window.localStorage.setItem('novelReadingProgress', JSON.stringify(readingProgress));
+                        console.log('阅读进度已保存');
+                    } catch (error) {
+                        console.warn('保存阅读进度失败:', error);
+                    }
+                }
+                
+                renderBookshelf();
+                updateProgressBar();
+            }
+        }
+
+        // 加载阅读进度
+        function loadReadingProgress() {
+            if (safeLocalStorage()) {
+                try {
+                    const savedProgress = JSON.parse(window.localStorage.getItem('novelReadingProgress') || '{}');
+                    readingProgress = savedProgress;
+                    Object.entries(readingProgress).forEach(([novelId, progress]) => {
+                        if (novels[novelId] && progress.chapterTitle) {
+                            novels[novelId].progress = progress.chapterTitle;
+                        }
+                    });
+                    console.log('阅读进度已加载');
+                } catch (error) {
+                    console.warn('加载阅读进度失败:', error);
+                }
+            }
+        }
+
+        // 从保存的进度继续阅读
+        function continueReading(novelId) {
+            if (readingProgress[novelId] && readingProgress[novelId].currentChapter !== undefined) {
+                return readingProgress[novelId].currentChapter;
+            }
+            return 0; // 默认从第一章开始
+        }
 
         // 初始化应用
         function init() {
             console.log('正在初始化应用...');
             
-            // 首先加载保存的设置
+            // 加载保存的设置
             loadSettings();
             
             // 获取页面元素
             elements = {
                 backBtn: document.getElementById('backBtn'),
+                backToReaderBtn: document.getElementById('backToReaderBtn'),
+                header: document.getElementById('header'),
                 headerTitle: document.getElementById('headerTitle'),
                 settingsBtn: document.getElementById('settingsBtn'),
                 bookshelf: document.getElementById('bookshelf'),
                 bookGrid: document.getElementById('bookGrid'),
                 reader: document.getElementById('reader'),
                 settings: document.getElementById('settings'),
-                chapterTitle: document.getElementById('chapterTitle'),
-                chapterContent: document.getElementById('chapterContent'),
+                chapterContainer: document.getElementById('chapterContainer'),
                 readerControls: document.getElementById('readerControls'),
                 prevChapter: document.getElementById('prevChapter'),
                 nextChapter: document.getElementById('nextChapter'),
@@ -1213,16 +1373,18 @@
                 readerSettings: document.getElementById('readerSettings'),
                 toggleControls: document.getElementById('toggleControls'),
                 toggleImmersive: document.getElementById('toggleImmersive'),
-                chapterContainer: document.getElementById('chapterContainer'),
-                chapterSlide: document.getElementById('chapterSlide'),
-                fontSizeSlider: document.getElementById('fontSizeSlider'),
-                fontSizeValue: document.getElementById('fontSizeValue')
+                fontSizeControl: document.getElementById('fontSizeControl'),
+                sensitivitySlider: document.getElementById('sensitivitySlider'),
+                sensitivityValue: document.getElementById('sensitivityValue'),
+                swipeHint: document.getElementById('swipeHint'),
+                progressIndicator: document.getElementById('progressIndicator'),
+                progressBar: document.getElementById('progressBar')
             };
 
             // 检查元素是否存在
             const missingElements = Object.entries(elements).filter(([key, el]) => !el);
             if (missingElements.length > 0) {
-                console.error('缺少页面元素:', missingElements);
+                console.error('缺少页面元素:', missingElements.map(([key]) => key));
                 return;
             }
 
@@ -1242,10 +1404,6 @@
         function renderBookshelf() {
             console.log('正在渲染书架...');
             const bookGrid = elements.bookGrid;
-            if (!bookGrid) {
-                console.error('bookGrid 元素不存在');
-                return;
-            }
             
             bookGrid.innerHTML = '';
             
@@ -1285,10 +1443,114 @@
         function openNovel(novelId) {
             console.log(`打开小说: ${novelId}`);
             currentNovel = novelId;
-            // 从保存的进度继续阅读，而不是总是从第一章开始
             currentChapter = continueReading(novelId);
             showReader();
-            updateChapterContent();
+            renderChapters();
+        }
+
+        // 渲染章节
+        function renderChapters() {
+            console.log('渲染章节...');
+            const novel = novels[currentNovel];
+            if (!novel || !novel.chapters || !novel.chapters[currentChapter]) {
+                console.error('章节数据无效');
+                return;
+            }
+            
+            elements.chapterContainer.innerHTML = '';
+            
+            // 创建当前章节
+            const currentSlide = document.createElement('div');
+            currentSlide.className = 'chapter-slide active';
+            currentSlide.dataset.chapter = currentChapter;
+            currentSlide.innerHTML = `
+                <div class="chapter-title">${novel.chapters[currentChapter].title}</div>
+                <div class="chapter-content">${novel.chapters[currentChapter].content}</div>
+            `;
+            elements.chapterContainer.appendChild(currentSlide);
+            
+            // 创建上一章（如果存在）
+            if (currentChapter > 0) {
+                const prevSlide = document.createElement('div');
+                prevSlide.className = 'chapter-slide prev';
+                prevSlide.dataset.chapter = currentChapter - 1;
+                prevSlide.innerHTML = `
+                    <div class="chapter-title">${novel.chapters[currentChapter - 1].title}</div>
+                    <div class="chapter-content">${novel.chapters[currentChapter - 1].content}</div>
+                `;
+                elements.chapterContainer.appendChild(prevSlide);
+            }
+            
+            // 创建下一章（如果存在）
+            if (currentChapter < novel.chapters.length - 1) {
+                const nextSlide = document.createElement('div');
+                nextSlide.className = 'chapter-slide next';
+                nextSlide.dataset.chapter = currentChapter + 1;
+                nextSlide.innerHTML = `
+                    <div class="chapter-title">${novel.chapters[currentChapter + 1].title}</div>
+                    <div class="chapter-content">${novel.chapters[currentChapter + 1].content}</div>
+                `;
+                elements.chapterContainer.appendChild(nextSlide);
+            }
+            
+            // 更新章节信息
+            elements.chapterInfo.textContent = `${currentChapter + 1}/${novel.chapters.length}`;
+            
+            // 更新按钮状态
+            elements.prevChapter.disabled = currentChapter === 0;
+            elements.nextChapter.disabled = currentChapter === novel.chapters.length - 1;
+            
+            // 应用字体大小
+            document.querySelectorAll('.chapter-content').forEach(content => {
+                content.style.fontSize = settings.fontSize + 'px';
+            });
+            
+            // 显示滑动提示
+            elements.swipeHint.style.display = 'block';
+            
+            // 保存阅读进度
+            saveReadingProgress();
+        }
+
+        // 切换章节
+        function switchChapter(direction) {
+            if (isAnimating) return;
+            
+            const novel = novels[currentNovel];
+            if (!novel) return;
+            
+            const slides = document.querySelectorAll('.chapter-slide');
+            
+            if (direction === 'next' && currentChapter < novel.chapters.length - 1) {
+                isAnimating = true;
+                currentChapter++;
+                
+                // 添加动画类
+                slides.forEach(slide => {
+                    slide.classList.add('next');
+                });
+                
+                // 动画完成后重新渲染
+                setTimeout(() => {
+                    renderChapters();
+                    isAnimating = false;
+                }, 500);
+                
+            } else if (direction === 'prev' && currentChapter > 0) {
+                isAnimating = true;
+                currentChapter--;
+                
+                // 添加动画类
+                slides.forEach(slide => {
+                    slide.classList.add('prev');
+                });
+                
+                // 动画完成后重新渲染
+                setTimeout(() => {
+                    renderChapters();
+                    isAnimating = false;
+                }, 500);
+            }
         }
 
         // 显示阅读器
@@ -1306,18 +1568,23 @@
             // 默认开启沉浸模式
             toggleImmersiveMode(true);
             
-            // 确保打开小说时也滚动到顶部
-            setTimeout(() => {
-                window.scrollTo({
-                    top: 0,
-                    behavior: 'smooth'
-                });
-            }, 100);
+            // 显示进度指示器
+            elements.progressIndicator.style.display = 'block';
+            updateProgressBar();
+        }
+
+        // 更新进度条
+        function updateProgressBar() {
+            if (!currentNovel || !novels[currentNovel]) return;
+            const novel = novels[currentNovel];
+            const progress = ((currentChapter + 1) / novel.chapters.length) * 100;
+            elements.progressBar.style.width = progress + '%';
         }
 
         // 显示设置页面
         function showSettings() {
             console.log('显示设置页面');
+            const wasFromReader = currentPage === 'reader';
             currentPage = 'settings';
             elements.bookshelf.style.display = 'none';
             elements.reader.classList.remove('active');
@@ -1326,6 +1593,16 @@
             elements.settings.style.display = 'block';
             elements.backBtn.style.display = 'block';
             elements.headerTitle.textContent = '设置';
+            
+            // 如果是从阅读界面进入设置，显示返回阅读按钮
+            if (wasFromReader && currentNovel) {
+                elements.backToReaderBtn.style.display = 'block';
+            } else {
+                elements.backToReaderBtn.style.display = 'none';
+            }
+            
+            // 隐藏进度指示器
+            elements.progressIndicator.style.display = 'none';
         }
 
         // 显示书架
@@ -1338,87 +1615,16 @@
             elements.settings.style.display = 'none';
             elements.bookshelf.style.display = 'block';
             elements.backBtn.style.display = 'none';
+            elements.backToReaderBtn.style.display = 'none';
             elements.headerTitle.textContent = '我的书架';
             elements.readerControls.classList.remove('active');
             
             // 恢复标题栏显示
-            const header = document.querySelector('.header');
-            header.style.transform = 'translateY(0)';
-            document.body.style.paddingTop = '';
+            elements.header.classList.remove('hidden');
             isImmersiveMode = false;
-        }
-
-        // 更新章节内容 - 添加滑动动画
-        function updateChapterContent(direction = 'none') {
-            if (isAnimating) return;
             
-            console.log('更新章节内容');
-            const novel = novels[currentNovel];
-            const chapter = novel.chapters[currentChapter];
-            
-            // 如果有方向，添加滑动动画
-            if (direction !== 'none') {
-                isAnimating = true;
-                const slide = elements.chapterSlide;
-                
-                // 设置退出动画
-                if (direction === 'next') {
-                    slide.classList.add('slide-up');
-                } else if (direction === 'prev') {
-                    slide.classList.add('slide-down');
-                }
-                
-                setTimeout(() => {
-                    // 更新内容
-                    elements.chapterTitle.textContent = chapter.title;
-                    elements.chapterContent.textContent = chapter.content;
-                    elements.chapterInfo.textContent = `${currentChapter + 1}/${novel.chapters.length}`;
-                    
-                    // 重置动画类
-                    slide.classList.remove('slide-up', 'slide-down');
-                    
-                    // 滚动到顶部
-                    window.scrollTo({ top: 0, behavior: 'auto' });
-                    
-                    isAnimating = false;
-                }, 200);
-            } else {
-                // 无动画直接更新
-                elements.chapterTitle.textContent = chapter.title;
-                elements.chapterContent.textContent = chapter.content;
-                elements.chapterInfo.textContent = `${currentChapter + 1}/${novel.chapters.length}`;
-                
-                // 滚动到页面顶部
-                window.scrollTo({
-                    top: 0,
-                    behavior: 'smooth'
-                });
-            }
-            
-            // 更新按钮状态
-            elements.prevChapter.disabled = currentChapter === 0;
-            elements.nextChapter.disabled = currentChapter === novel.chapters.length - 1;
-        }
-
-        // 上一章
-        function prevChapter() {
-            console.log('上一章');
-            if (currentChapter > 0 && !isAnimating) {
-                currentChapter--;
-                updateChapterContent('prev');
-                saveReadingProgress();
-            }
-        }
-
-        // 下一章
-        function nextChapter() {
-            console.log('下一章');
-            const novel = novels[currentNovel];
-            if (currentChapter < novel.chapters.length - 1 && !isAnimating) {
-                currentChapter++;
-                updateChapterContent('next');
-                saveReadingProgress();
-            }
+            // 隐藏进度指示器
+            elements.progressIndicator.style.display = 'none';
         }
 
         // 沉浸模式切换
@@ -1429,19 +1635,14 @@
                 isImmersiveMode = !isImmersiveMode;
             }
             
-            const header = document.querySelector('.header');
-            const reader = elements.reader;
-            
             if (isImmersiveMode) {
-                reader.classList.add('immersive');
-                header.style.transform = 'translateY(-100%)';
-                elements.toggleImmersive.textContent = '显示标题';
-                document.body.style.paddingTop = '0';
+                elements.header.classList.add('hidden');
+                elements.readerControls.classList.add('hidden');
+                elements.swipeHint.style.display = 'block';
             } else {
-                reader.classList.remove('immersive');
-                header.style.transform = 'translateY(0)';
-                elements.toggleImmersive.textContent = '沉浸模式';
-                document.body.style.paddingTop = '60px';
+                elements.header.classList.remove('hidden');
+                elements.readerControls.classList.remove('hidden');
+                elements.swipeHint.style.display = 'none';
             }
             
             console.log('沉浸模式:', isImmersiveMode ? '开启' : '关闭');
@@ -1451,9 +1652,14 @@
         function applySettings() {
             console.log('应用设置');
             // 字体大小
-            elements.chapterContent.style.fontSize = settings.fontSize + 'px';
-            elements.fontSizeValue.textContent = settings.fontSize + 'px';
-            elements.fontSizeSlider.value = settings.fontSize;
+            document.querySelectorAll('.chapter-content').forEach(content => {
+                content.style.fontSize = settings.fontSize + 'px';
+            });
+            
+            // 更新字体大小按钮状态
+            document.querySelectorAll('.font-size-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.size) === settings.fontSize);
+            });
             
             // 主题
             document.body.className = `theme-${settings.theme}`;
@@ -1463,66 +1669,13 @@
                 option.classList.toggle('active', option.dataset.theme === settings.theme);
             });
             
-            // 更新翻页方式选择器状态
-            document.querySelectorAll('.flip-option').forEach(option => {
-                option.classList.toggle('active', option.dataset.flip === settings.flipMode);
-            });
+            // 滑动灵敏度
+            const sensitivityLabels = ['低', '中', '高'];
+            elements.sensitivityValue.textContent = sensitivityLabels[settings.swipeSensitivity - 1];
+            elements.sensitivitySlider.value = settings.swipeSensitivity;
             
             // 保存设置
             saveSettings();
-        }
-
-        // 保存阅读进度
-        function saveReadingProgress() {
-            if (currentNovel && novels[currentNovel]) {
-                const novel = novels[currentNovel];
-                const chapter = novel.chapters[currentChapter];
-                novels[currentNovel].progress = chapter.title;
-                
-                // 同时保存阅读进度到本地存储
-                try {
-                    const readingProgress = JSON.parse(window.localStorage.getItem('novelReadingProgress') || '{}');
-                    readingProgress[currentNovel] = {
-                        currentChapter: currentChapter,
-                        chapterTitle: chapter.title,
-                        lastReadTime: new Date().toISOString()
-                    };
-                    window.localStorage.setItem('novelReadingProgress', JSON.stringify(readingProgress));
-                    console.log('阅读进度已保存');
-                } catch (error) {
-                    console.error('保存阅读进度失败:', error);
-                }
-                
-                renderBookshelf();
-            }
-        }
-
-        // 加载阅读进度
-        function loadReadingProgress() {
-            try {
-                const readingProgress = JSON.parse(window.localStorage.getItem('novelReadingProgress') || '{}');
-                Object.entries(readingProgress).forEach(([novelId, progress]) => {
-                    if (novels[novelId] && progress.chapterTitle) {
-                        novels[novelId].progress = progress.chapterTitle;
-                    }
-                });
-                console.log('阅读进度已加载');
-            } catch (error) {
-                console.error('加载阅读进度失败:', error);
-            }
-        }
-
-        // 从保存的进度继续阅读
-        function continueReading(novelId) {
-            try {
-                const readingProgress = JSON.parse(window.localStorage.getItem('novelReadingProgress') || '{}');
-                if (readingProgress[novelId] && readingProgress[novelId].currentChapter !== undefined) {
-                    return readingProgress[novelId].currentChapter;
-                }
-            } catch (error) {
-                console.error('获取阅读进度失败:', error);
-            }
-            return 0; // 默认从第一章开始
         }
 
         // 绑定事件
@@ -1532,15 +1685,22 @@
             // 返回按钮
             elements.backBtn.addEventListener('click', showBookshelf);
             
+            // 返回阅读按钮
+            elements.backToReaderBtn.addEventListener('click', () => {
+                if (currentNovel) {
+                    showReader();
+                }
+            });
+            
             // 设置按钮
             elements.settingsBtn.addEventListener('click', showSettings);
             
             // 阅读控制
-            elements.prevChapter.addEventListener('click', prevChapter);
-            elements.nextChapter.addEventListener('click', nextChapter);
+            elements.prevChapter.addEventListener('click', () => switchChapter('prev'));
+            elements.nextChapter.addEventListener('click', () => switchChapter('next'));
             elements.readerSettings.addEventListener('click', showSettings);
             elements.toggleControls.addEventListener('click', () => {
-                elements.readerControls.classList.remove('active');
+                elements.readerControls.classList.add('hidden');
             });
             
             // 沉浸模式切换
@@ -1548,9 +1708,17 @@
                 toggleImmersiveMode();
             });
             
-            // 字体大小调节
-            elements.fontSizeSlider.addEventListener('input', (e) => {
-                settings.fontSize = parseInt(e.target.value);
+            // 字体大小按钮
+            elements.fontSizeControl.addEventListener('click', (e) => {
+                if (e.target.classList.contains('font-size-btn')) {
+                    settings.fontSize = parseInt(e.target.dataset.size);
+                    applySettings();
+                }
+            });
+            
+            // 滑动灵敏度调节
+            elements.sensitivitySlider.addEventListener('input', (e) => {
+                settings.swipeSensitivity = parseInt(e.target.value);
                 applySettings();
             });
             
@@ -1562,37 +1730,55 @@
                 });
             });
             
-            // 翻页方式切换
-            document.querySelectorAll('.flip-option').forEach(option => {
-                option.addEventListener('click', () => {
-                    settings.flipMode = option.dataset.flip;
-                    applySettings();
-                });
-            });
-            
             // 阅读页面点击事件
             elements.reader.addEventListener('click', (e) => {
                 // 如果点击的不是控制按钮，则切换控制栏显示状态
                 if (!e.target.closest('.reader-controls')) {
                     elements.readerControls.classList.toggle('active');
+                    elements.readerControls.classList.toggle('hidden');
+                    
+                    // 在沉浸模式下显示标题栏
+                    if (isImmersiveMode && elements.readerControls.classList.contains('active')) {
+                        toggleImmersiveMode(false);
+                        // 3秒后自动隐藏
+                        setTimeout(() => {
+                            if (currentPage === 'reader') {
+                                toggleImmersiveMode(true);
+                                elements.readerControls.classList.remove('active');
+                                elements.readerControls.classList.add('hidden');
+                            }
+                        }, 3000);
+                    }
                 }
             });
             
-            // 阅读页面翻页功能
-            elements.chapterContent.addEventListener('click', handleTapFlip);
-            
             // 滑动翻页（触摸事件）
-            let touchStartX = 0;
-            let touchEndX = 0;
-            
             elements.reader.addEventListener('touchstart', (e) => {
-                touchStartX = e.changedTouches[0].screenX;
+                touchStartY = e.touches[0].clientY;
+                touchStartTime = new Date().getTime();
             });
             
             elements.reader.addEventListener('touchend', (e) => {
-                touchEndX = e.changedTouches[0].screenX;
-                if (settings.flipMode === 'swipe') {
-                    handleSwipeFlip();
+                if (isAnimating) return;
+                
+                const touchEndY = e.changedTouches[0].clientY;
+                const deltaY = touchEndY - touchStartY;
+                const timeDelta = new Date().getTime() - touchStartTime;
+                
+                // 计算滑动距离和速度阈值
+                const distanceThreshold = [150, 100, 50][settings.swipeSensitivity - 1];
+                const velocityThreshold = [0.3, 0.5, 0.8][settings.swipeSensitivity - 1];
+                const velocity = Math.abs(deltaY) / timeDelta;
+                
+                // 判断是否达到滑动翻页的条件
+                if (Math.abs(deltaY) > distanceThreshold || velocity > velocityThreshold) {
+                    if (deltaY < 0) {
+                        // 向上滑动，下一章
+                        switchChapter('next');
+                    } else {
+                        // 向下滑动，上一章
+                        switchChapter('prev');
+                    }
                 }
             });
             
@@ -1601,19 +1787,28 @@
                 e.stopPropagation();
             });
             
+            // 滚动事件 - 隐藏提示
+            elements.chapterContainer.addEventListener('scroll', () => {
+                if (elements.swipeHint) {
+                    elements.swipeHint.style.display = 'none';
+                }
+            });
+            
             // 键盘快捷键支持
             document.addEventListener('keydown', (e) => {
                 if (currentPage === 'reader') {
                     switch(e.key) {
                         case 'ArrowLeft':
                         case 'ArrowUp':
+                        case 'PageUp':
                             e.preventDefault();
-                            prevChapter();
+                            switchChapter('prev');
                             break;
                         case 'ArrowRight':
                         case 'ArrowDown':
+                        case 'PageDown':
                             e.preventDefault();
-                            nextChapter();
+                            switchChapter('next');
                             break;
                         case 'Escape':
                             e.preventDefault();
@@ -1623,40 +1818,6 @@
                 }
             });
         }
-        
-        // 处理点击翻页
-        function handleTapFlip(e) {
-            if (settings.flipMode !== 'tap' || isAnimating) return;
-            
-            const rect = elements.chapterContent.getBoundingClientRect();
-            const clickX = e.clientX - rect.left;
-            const width = rect.width;
-            
-            // 左半边上一章，右半边下一章
-            if (clickX < width / 2) {
-                prevChapter();
-            } else {
-                nextChapter();
-            }
-        }
-        
-        // 处理滑动翻页
-        function handleSwipeFlip() {
-            if (isAnimating) return;
-            
-            const swipeThreshold = 50;
-            const swipeDistance = touchEndX - touchStartX;
-            
-            if (Math.abs(swipeDistance) > swipeThreshold) {
-                if (swipeDistance > 0) {
-                    // 向右滑动，上一章
-                    prevChapter();
-                } else {
-                    // 向左滑动，下一章
-                    nextChapter();
-                }
-            }
-        }
 
         // 启动应用
         if (document.readyState === 'loading') {
@@ -1665,3 +1826,5 @@
             init();
         }
     </script>
+</body>
+</html>
