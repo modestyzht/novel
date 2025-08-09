@@ -446,9 +446,9 @@
     </div>
 
     <script>
-        // 小说数据
+        // 示例小说数据
         const novels = {
-            1: {
+                       1: {
                 title: "龙族Z",
                 author: "西北驴哥",
                 progress: "第3章",
@@ -898,12 +898,37 @@
             }
         };
 
-        // 应用设置
+        // 应用设置 - 添加默认设置
         let settings = {
             fontSize: 16,
             theme: 'light',
             flipMode: 'tap'
         };
+
+        // 从本地存储加载设置
+        function loadSettings() {
+            try {
+                const savedSettings = JSON.parse(window.localStorage.getItem('novelReaderSettings'));
+                if (savedSettings) {
+                    settings = { ...settings, ...savedSettings };
+                    console.log('已加载保存的设置:', settings);
+                } else {
+                    console.log('使用默认设置');
+                }
+            } catch (error) {
+                console.error('加载设置失败，使用默认设置:', error);
+            }
+        }
+
+        // 保存设置到本地存储
+        function saveSettings() {
+            try {
+                window.localStorage.setItem('novelReaderSettings', JSON.stringify(settings));
+                console.log('设置已保存:', settings);
+            } catch (error) {
+                console.error('保存设置失败:', error);
+            }
+        }
 
         // 当前状态
         let currentPage = 'bookshelf';
@@ -916,6 +941,9 @@
         // 初始化应用
         function init() {
             console.log('正在初始化应用...');
+            
+            // 首先加载保存的设置
+            loadSettings();
             
             // 获取页面元素
             elements = {
@@ -946,6 +974,9 @@
             }
 
             console.log('页面元素获取成功');
+            
+            // 加载阅读进度
+            loadReadingProgress();
             
             renderBookshelf();
             bindEvents();
@@ -1001,7 +1032,8 @@
         function openNovel(novelId) {
             console.log(`打开小说: ${novelId}`);
             currentNovel = novelId;
-            currentChapter = 0;
+            // 从保存的进度继续阅读，而不是总是从第一章开始
+            currentChapter = continueReading(novelId);
             showReader();
             updateChapterContent();
         }
@@ -1017,6 +1049,14 @@
             elements.reader.style.display = 'block';
             elements.backBtn.style.display = 'block';
             elements.headerTitle.textContent = novels[currentNovel].title;
+            
+            // 确保打开小说时也滚动到顶部
+            setTimeout(() => {
+                window.scrollTo({
+                    top: 0,
+                    behavior: 'smooth'
+                });
+            }, 100);
         }
 
         // 显示设置页面
@@ -1059,6 +1099,18 @@
             // 更新按钮状态
             elements.prevChapter.disabled = currentChapter === 0;
             elements.nextChapter.disabled = currentChapter === novel.chapters.length - 1;
+            
+            // 滚动到页面顶部
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+            
+            // 也可以滚动到章节标题位置
+            elements.chapterTitle.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
         }
 
         // 上一章
@@ -1102,6 +1154,9 @@
             document.querySelectorAll('.flip-option').forEach(option => {
                 option.classList.toggle('active', option.dataset.flip === settings.flipMode);
             });
+            
+            // 保存设置
+            saveSettings();
         }
 
         // 保存阅读进度
@@ -1110,8 +1165,51 @@
                 const novel = novels[currentNovel];
                 const chapter = novel.chapters[currentChapter];
                 novels[currentNovel].progress = chapter.title;
+                
+                // 同时保存阅读进度到本地存储
+                try {
+                    const readingProgress = JSON.parse(window.localStorage.getItem('novelReadingProgress') || '{}');
+                    readingProgress[currentNovel] = {
+                        currentChapter: currentChapter,
+                        chapterTitle: chapter.title,
+                        lastReadTime: new Date().toISOString()
+                    };
+                    window.localStorage.setItem('novelReadingProgress', JSON.stringify(readingProgress));
+                    console.log('阅读进度已保存');
+                } catch (error) {
+                    console.error('保存阅读进度失败:', error);
+                }
+                
                 renderBookshelf();
             }
+        }
+
+        // 加载阅读进度
+        function loadReadingProgress() {
+            try {
+                const readingProgress = JSON.parse(window.localStorage.getItem('novelReadingProgress') || '{}');
+                Object.entries(readingProgress).forEach(([novelId, progress]) => {
+                    if (novels[novelId] && progress.chapterTitle) {
+                        novels[novelId].progress = progress.chapterTitle;
+                    }
+                });
+                console.log('阅读进度已加载');
+            } catch (error) {
+                console.error('加载阅读进度失败:', error);
+            }
+        }
+
+        // 从保存的进度继续阅读
+        function continueReading(novelId) {
+            try {
+                const readingProgress = JSON.parse(window.localStorage.getItem('novelReadingProgress') || '{}');
+                if (readingProgress[novelId] && readingProgress[novelId].currentChapter !== undefined) {
+                    return readingProgress[novelId].currentChapter;
+                }
+            } catch (error) {
+                console.error('获取阅读进度失败:', error);
+            }
+            return 0; // 默认从第一章开始
         }
 
         // 绑定事件
