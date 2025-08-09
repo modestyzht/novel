@@ -460,33 +460,11 @@
             border-bottom-color: #d0e8d0;
         }
         
-        /* 进度指示器 */
-        .progress-indicator {
-            position: fixed;
-            top: 60px;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: rgba(0,0,0,0.1);
-            z-index: 90;
-            display: none;
-        }
-        
-        .progress-bar {
-            height: 100%;
-            width: 0%;
-            background: #007AFF;
-            transition: width 0.3s ease;
-        }
+
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- 进度指示器 -->
-        <div class="progress-indicator" id="progressIndicator">
-            <div class="progress-bar" id="progressBar"></div>
-        </div>
-        
         <!-- 头部导航 -->
         <header class="header" id="header">
             <button class="header-btn" id="backBtn" style="display: none;">←</button>
@@ -575,7 +553,7 @@
     <script>
         // 示例小说数据
         const novels = {
-                         1: {
+                                   1: {
                 title: "龙族Z",
                 author: "西北驴哥",
                 progress: "第3章",
@@ -1249,6 +1227,7 @@
         let isAnimating = false;
         let touchStartY = 0;
         let touchStartTime = 0;
+        let canSwipeChapter = false; // 是否可以滑动切换章节
 
         // 阅读进度内存存储
         let readingProgress = {};
@@ -1376,9 +1355,7 @@
                 fontSizeControl: document.getElementById('fontSizeControl'),
                 sensitivitySlider: document.getElementById('sensitivitySlider'),
                 sensitivityValue: document.getElementById('sensitivityValue'),
-                swipeHint: document.getElementById('swipeHint'),
-                progressIndicator: document.getElementById('progressIndicator'),
-                progressBar: document.getElementById('progressBar')
+                swipeHint: document.getElementById('swipeHint')
             };
 
             // 检查元素是否存在
@@ -1508,8 +1485,43 @@
             // 显示滑动提示
             elements.swipeHint.style.display = 'block';
             
+            // 重置滑动状态
+            canSwipeChapter = false;
+            
+            // 监听滚动事件来判断是否可以滑动切换章节
+            setupSwipeDetection();
+            
             // 保存阅读进度
             saveReadingProgress();
+        }
+
+        // 设置滑动检测
+        function setupSwipeDetection() {
+            const activeSlide = document.querySelector('.chapter-slide.active');
+            if (!activeSlide) return;
+            
+            activeSlide.addEventListener('scroll', () => {
+                const scrollTop = activeSlide.scrollTop;
+                const scrollHeight = activeSlide.scrollHeight;
+                const clientHeight = activeSlide.clientHeight;
+                
+                // 在顶部30px范围内或底部30px范围内才允许滑动切换章节
+                const topZone = scrollTop <= 30;
+                const bottomZone = scrollTop + clientHeight >= scrollHeight - 30;
+                
+                canSwipeChapter = topZone || bottomZone;
+                
+                if (canSwipeChapter) {
+                    elements.swipeHint.style.display = 'block';
+                } else {
+                    elements.swipeHint.style.display = 'none';
+                }
+            });
+            
+            // 初始检查
+            setTimeout(() => {
+                activeSlide.dispatchEvent(new Event('scroll'));
+            }, 100);
         }
 
         // 切换章节
@@ -1567,18 +1579,11 @@
             
             // 默认开启沉浸模式
             toggleImmersiveMode(true);
-            
-            // 显示进度指示器
-            elements.progressIndicator.style.display = 'block';
-            updateProgressBar();
         }
 
         // 更新进度条
         function updateProgressBar() {
-            if (!currentNovel || !novels[currentNovel]) return;
-            const novel = novels[currentNovel];
-            const progress = ((currentChapter + 1) / novel.chapters.length) * 100;
-            elements.progressBar.style.width = progress + '%';
+            // 进度条已移除，保留函数避免错误
         }
 
         // 显示设置页面
@@ -1600,9 +1605,6 @@
             } else {
                 elements.backToReaderBtn.style.display = 'none';
             }
-            
-            // 隐藏进度指示器
-            elements.progressIndicator.style.display = 'none';
         }
 
         // 显示书架
@@ -1622,9 +1624,6 @@
             // 恢复标题栏显示
             elements.header.classList.remove('hidden');
             isImmersiveMode = false;
-            
-            // 隐藏进度指示器
-            elements.progressIndicator.style.display = 'none';
         }
 
         // 沉浸模式切换
@@ -1759,19 +1758,19 @@
             });
             
             elements.reader.addEventListener('touchend', (e) => {
-                if (isAnimating) return;
+                if (isAnimating || !canSwipeChapter) return;
                 
                 const touchEndY = e.changedTouches[0].clientY;
                 const deltaY = touchEndY - touchStartY;
                 const timeDelta = new Date().getTime() - touchStartTime;
                 
-                // 计算滑动距离和速度阈值
-                const distanceThreshold = [150, 100, 50][settings.swipeSensitivity - 1];
-                const velocityThreshold = [0.3, 0.5, 0.8][settings.swipeSensitivity - 1];
+                // 计算滑动距离和速度阈值 - 提高阈值，降低灵敏度
+                const distanceThreshold = [200, 150, 100][settings.swipeSensitivity - 1];
+                const velocityThreshold = [0.2, 0.3, 0.5][settings.swipeSensitivity - 1];
                 const velocity = Math.abs(deltaY) / timeDelta;
                 
                 // 判断是否达到滑动翻页的条件
-                if (Math.abs(deltaY) > distanceThreshold || velocity > velocityThreshold) {
+                if (Math.abs(deltaY) > distanceThreshold && velocity > velocityThreshold) {
                     if (deltaY < 0) {
                         // 向上滑动，下一章
                         switchChapter('next');
@@ -1787,11 +1786,9 @@
                 e.stopPropagation();
             });
             
-            // 滚动事件 - 隐藏提示
+            // 滚动事件 - 隐藏提示和更新滑动状态
             elements.chapterContainer.addEventListener('scroll', () => {
-                if (elements.swipeHint) {
-                    elements.swipeHint.style.display = 'none';
-                }
+                // 滑动检测会在 setupSwipeDetection 中处理
             });
             
             // 键盘快捷键支持
